@@ -1,8 +1,17 @@
 # Peak Moments - Mountaineering Photography Landing Page
-tst
-
 
 A modern, responsive landing page designed to showcase mountaineering photography with a fluid, professional design inspired by high-end portfolio sites.
+
+## What Problem Does This Solve?
+
+Mountaineering photographers and adventure enthusiasts need a professional way to showcase their work online, but building a custom portfolio site from scratch is time-consuming and requires extensive web development skills. This project solves that problem by providing a **ready-to-use, production-quality landing page** that can be customized with your own images and content in minutes, not weeks.
+
+### Key Problems Addressed:
+- **No coding required**: Just replace images and text to make it your own
+- **Professional design**: High-end portfolio aesthetics without hiring a designer
+- **Mobile-friendly**: Works perfectly on all devices out of the box
+- **Fast setup**: Deploy your portfolio in under an hour
+- **Zero cost**: No subscriptions or premium themes needed
 
 ## Features
 
