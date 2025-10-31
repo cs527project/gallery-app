@@ -8,7 +8,8 @@ jobs:
     # Install node dependencies and run tests
     executor: node/default
     environment:
-      JEST_JUNIT_OUTPUT_DIR: ./test-results/
+      JEST_JUNIT_OUTPUT_DIR: ./test-results
+      JEST_JUNIT_OUTPUT_NAME: junit.xml
     steps:
       - run:
           name: Configure git to use HTTPS
@@ -18,12 +19,19 @@ jobs:
       - node/install-packages:
           pkg-manager: yarn
       - run:
+          name: Ensure test results dir exists
+          command: mkdir -p ./test-results
+      - run:
+          name: Install jest-junit (temporary; prefer adding to package.json devDependencies)
           command: yarn add jest-junit --ignore-workspace-root-check
       - run:
           name: Run tests
           command: yarn run test --ci --runInBand --reporters=default --reporters=jest-junit
       - store_test_results:
           path: ./test-results/
+      - store_artifacts:
+          path: ./test-results/
+          destination: test-results
   deploy:
     # This is an example deploy job, not actually used by the workflow
     docker:
