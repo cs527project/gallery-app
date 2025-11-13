@@ -23,7 +23,7 @@ describe('Flaky Timing-Based Tests', () => {
     const button = document.getElementById('load-data-btn');
     const display = document.getElementById('data-display');
     const spinner = document.querySelector('.spinner');
-    
+
     // Mock async data loading with random delay
     const mockLoadData = () => {
       return new Promise((resolve) => {
@@ -38,46 +38,40 @@ describe('Flaky Timing-Based Tests', () => {
     };
 
     spinner.style.display = 'block';
-    
-    // Start loading
-    const loadPromise = mockLoadData();
-    
-    // This assertion will fail ~70% of the time due to race condition
-    setTimeout(() => {
-      expect(display.textContent).toBe('Data loaded!');
-      expect(spinner.style.display).toBe('none');
-    }, 120); // Fixed 120ms - will often run before the 80-200ms delay completes
-    
-    await loadPromise;
+
+    // Wait for loading to complete
+    await mockLoadData();
+
+    expect(display.textContent).toBe('Data loaded!');
+    expect(spinner.style.display).toBe('none');
   });
 
   // FLAKY TEST 2: Animation timing dependency
-  test('should complete animation within expected time (FLAKY: animation timing)', (done) => {
+  test('should complete animation within expected time (FLAKY: animation timing)', async () => {
     const target = document.querySelector('.animation-target');
     let animationStarted = false;
     let animationCompleted = false;
-    
+
     // Mock animation with variable duration
     const mockAnimate = () => {
-      animationStarted = true;
-      target.style.transition = 'transform 0.3s ease';
-      target.style.transform = 'translateX(100px)';
-      
-      // Animation completion detection with timing issues - now more variable
-      setTimeout(() => {
-        animationCompleted = true;
-      }, 200 + Math.random() * 200); // 200-400ms - much more inconsistent timing
+      return new Promise((resolve) => {
+        animationStarted = true;
+        target.style.transition = 'transform 0.3s ease';
+        target.style.transform = 'translateX(100px)';
+
+        // Animation completion detection with timing issues - now more variable
+        setTimeout(() => {
+          animationCompleted = true;
+          resolve();
+        }, 200 + Math.random() * 200); // 200-400ms - much more inconsistent timing
+      });
     };
 
-    mockAnimate();
-    
-    // Check animation state at fixed time - will fail ~65% due to variable completion time
-    setTimeout(() => {
-      expect(animationStarted).toBe(true);
-      expect(animationCompleted).toBe(true); // FLAKY: will fail ~65% of the time
-      expect(target.style.transform).toBe('translateX(100px)');
-      done();
-    }, 250); // Fixed 250ms check - often before completion
+    await mockAnimate();
+
+    expect(animationStarted).toBe(true);
+    expect(animationCompleted).toBe(true);
+    expect(target.style.transform).toBe('translateX(100px)');
   });
 
   // FLAKY TEST 3: Async/await with insufficient waiting
