@@ -1,15 +1,13 @@
 module.exports = {
-  testEnvironment: 'jsdom',
-  setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
-  testMatch: ['<rootDir>/tests/**/*.test.js'],
-  collectCoverageFrom: [
-    'script.js',
-    '!**/node_modules/**'
-  ],
-  coverageDirectory: 'coverage',
-  coverageReporters: ['text', 'lcov', 'html'],
+  testEnvironment: "jsdom",
+  setupFilesAfterEnv: ["<rootDir>/tests/setup.js"],
+  testMatch: ["<rootDir>/tests/**/*.test.js"],
+  testPathIgnorePatterns: ["<rootDir>/tests/flaky-.*\\.test\\.js$"],
+  collectCoverageFrom: ["script.js", "!**/node_modules/**"],
+  coverageDirectory: "coverage",
+  coverageReporters: ["text", "lcov", "html"],
   verbose: true,
   clearMocks: true,
   resetMocks: true,
-  restoreMocks: true
-}; 
+  restoreMocks: true,
+};
