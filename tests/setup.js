@@ -93,9 +93,18 @@ beforeEach(() => {
   // Reset DOM
   document.body.innerHTML = "";
   document.head.innerHTML = "";
+  document.body.className = "";
 
   // Reset window scroll position
   window.pageYOffset = 0;
+
+  if (typeof localStorage !== "undefined" && localStorage.clear)
+    localStorage.clear();
+  if (typeof sessionStorage !== "undefined" && sessionStorage.clear)
+    sessionStorage.clear();
+  delete window.testGlobal;
+  delete window.userPreferences;
+  delete global.debugMode;
 
   // Clear all mocks
   jest.clearAllMocks();
