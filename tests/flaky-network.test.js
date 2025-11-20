@@ -5,7 +5,7 @@
 // Mock fetch globally for these tests
 global.fetch = jest.fn();
 
-describe('Flaky Network-Dependent Tests', () => {
+describe("Flaky Network-Dependent Tests", () => {
   let mockHTML;
 
   beforeEach(() => {
@@ -17,268 +17,242 @@ describe('Flaky Network-Dependent Tests', () => {
       </div>
     `;
     document.body.innerHTML = mockHTML;
-    
+
     // Reset fetch mock
     fetch.mockClear();
   });
 
   afterEach(() => {
     jest.clearAllMocks();
+    jest.useRealTimers();
   });
 
-  // FLAKY TEST 19: Network request with variable response time
-  test('should handle API response timing (FLAKY: network timing)', async () => {
-    const resultDiv = document.getElementById('api-result');
-    
-    // Mock API response with random delay and higher failure rate
+  // Deterministic: Network request timing (no randomness, no contradictory timing assertions)
+  test("should handle API response timing deterministically", async () => {
+    jest.useFakeTimers();
+
+    const resultDiv = document.getElementById("api-result");
+
     const mockApiCall = () => {
-      return new Promise((resolve, reject) => {
-        const delay = Math.random() * 2000 + 800; // 800-2800ms - longer delays
-        const shouldFail = Math.random() < 0.4; // 40% chance of failure - much higher
-        
+      return new Promise((resolve) => {
+        const delay = 1000; // fixed delay
         setTimeout(() => {
-          if (shouldFail) {
-            reject(new Error('Network error'));
-          } else {
-            resolve({ data: 'API response', timestamp: Date.now() });
-          }
+          resolve({ data: "API response", timestamp: Date.now() });
         }, delay);
       });
     };
 
-    const startTime = Date.now();
-    
-    try {
-      const response = await mockApiCall();
-      const endTime = Date.now();
-      const duration = endTime - startTime;
-      
+    const promise = mockApiCall().then((response) => {
       resultDiv.textContent = response.data;
-      
-      // These assertions assume specific timing and success - more restrictive
-      expect(response.data).toBe('API response');
-      expect(duration).toBeLessThan(1200); // FLAKY: ~75% chance of taking longer than 1200ms
-      expect(duration).toBeGreaterThan(2500); // FLAKY: ~80% chance of being less than 2500ms
-      expect(resultDiv.textContent).toBe('API response');
-    } catch (error) {
-      // This catch block makes the test fail when network fails (40% of time)
-      expect(error.message).toBe('Success response'); // FLAKY: will fail when network actually fails
-    }
+      expect(response.data).toBe("API response");
+      expect(resultDiv.textContent).toBe("API response");
+    });
+
+    jest.runAllTimers();
+    await promise;
   });
 
-  // FLAKY TEST 20: Multiple concurrent requests
-  test('should handle concurrent API calls (FLAKY: race conditions)', async () => {
+  // Deterministic: Multiple concurrent requests (order-independent)
+  test("should handle concurrent API calls without assuming order", async () => {
     const results = [];
-    
-    // Mock multiple API endpoints with different response times
-    const mockApiCall1 = () => new Promise(resolve => {
-      setTimeout(() => resolve({ id: 1, data: 'First API' }), Math.random() * 200 + 100);
-    });
-    
-    const mockApiCall2 = () => new Promise(resolve => {
-      setTimeout(() => resolve({ id: 2, data: 'Second API' }), Math.random() * 300 + 50);
-    });
-    
-    const mockApiCall3 = () => new Promise(resolve => {
-      setTimeout(() => resolve({ id: 3, data: 'Third API' }), Math.random() * 150 + 75);
-    });
 
-    // Start all requests concurrently
+    const mockApiCall1 = () =>
+      new Promise((resolve) => {
+        setTimeout(() => resolve({ id: 1, data: "First API" }), 120);
+      });
+
+    const mockApiCall2 = () =>
+      new Promise((resolve) => {
+        setTimeout(() => resolve({ id: 2, data: "Second API" }), 80);
+      });
+
+    const mockApiCall3 = () =>
+      new Promise((resolve) => {
+        setTimeout(() => resolve({ id: 3, data: "Third API" }), 160);
+      });
+
+    jest.useFakeTimers();
+
     const promises = [
-      mockApiCall1().then(result => results.push(result)),
-      mockApiCall2().then(result => results.push(result)),
-      mockApiCall3().then(result => results.push(result))
+      mockApiCall1().then((r) => results.push(r)),
+      mockApiCall2().then((r) => results.push(r)),
+      mockApiCall3().then((r) => results.push(r)),
     ];
-    
-    await Promise.all(promises);
-    
-    // These assertions assume specific order based on timing
+
+    const all = Promise.all(promises);
+    jest.runAllTimers();
+    await all;
+
     expect(results).toHaveLength(3);
-    expect(results[0].id).toBe(3); // FLAKY: order depends on random timing
-    expect(results[1].id).toBe(1); // FLAKY: order depends on random timing
-    expect(results[2].id).toBe(2); // FLAKY: order depends on random timing
+    const ids = results.map((r) => r.id).sort((a, b) => a - b);
+    expect(ids).toEqual([1, 2, 3]);
   });
 
-  // FLAKY TEST 21: Retry logic with intermittent failures
-  test('should retry failed requests correctly (FLAKY: retry timing)', async () => {
+  // Deterministic: Retry logic with scripted outcomes
+  test("should retry failed requests and succeed within limit", async () => {
     let attemptCount = 0;
     const maxRetries = 3;
-    
-    // Mock API that fails more often
+    const outcomes = [false, false, true]; // fail, fail, succeed
+
     const mockUnreliableApi = () => {
       attemptCount++;
       return new Promise((resolve, reject) => {
-        const failureRate = 0.85; // 85% failure rate - much higher
-        const shouldFail = Math.random() < failureRate;
-        
-        setTimeout(() => {
-          if (shouldFail && attemptCount <= maxRetries) {
-            reject(new Error(`Attempt ${attemptCount} failed`));
-          } else {
-            resolve({ success: true, attempts: attemptCount });
-          }
-        }, Math.random() * 200 + 100); // Longer delays
+        const shouldSucceed = outcomes[attemptCount - 1] === true;
+        if (shouldSucceed) {
+          resolve({ success: true, attempts: attemptCount });
+        } else {
+          reject(new Error(`Attempt ${attemptCount} failed`));
+        }
       });
     };
 
-    // Mock retry logic
     const mockRetryRequest = async () => {
       for (let i = 0; i < maxRetries; i++) {
         try {
           return await mockUnreliableApi();
         } catch (error) {
           if (i === maxRetries - 1) throw error;
-          await new Promise(resolve => setTimeout(resolve, 50)); // Shorter retry delay
+          // no wait between retries in this deterministic test
         }
       }
     };
 
-    try {
-      const result = await mockRetryRequest();
-      
-      // These assertions assume success within retry limit - more restrictive
-      expect(result.success).toBe(true);
-      expect(result.attempts).toBe(1); // FLAKY: ~85% chance of not being 1
-      expect(attemptCount).toBe(2); // FLAKY: attempt count is very random with 85% failure rate
-      expect(result.attempts).toBeLessThan(2); // FLAKY: ~85% chance of being >= 2
-    } catch (error) {
-      // Test will fail when all retries are exhausted (~50% of the time with 85% failure rate)
-      expect(error.message).toBe('Success'); // FLAKY: will fail when retries actually exhausted
-    }
+    const result = await mockRetryRequest();
+
+    expect(result.success).toBe(true);
+    expect(result.attempts).toBe(3);
+    expect(attemptCount).toBe(3);
   });
 
-  // FLAKY TEST 22: Cache behavior with expiration
-  test('should handle cache expiration correctly (FLAKY: cache timing)', async () => {
+  // Deterministic: Cache behavior with expiration using fake timers
+  test("should handle cache expiration deterministically", async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date(0));
+
     const cache = new Map();
     const cacheExpiry = 200; // 200ms cache
-    
-    // Mock API with caching
+
     const mockCachedApiCall = async (key) => {
       const now = Date.now();
       const cached = cache.get(key);
-      
-      if (cached && (now - cached.timestamp) < cacheExpiry) {
+
+      if (cached && now - cached.timestamp < cacheExpiry) {
         return { ...cached.data, fromCache: true };
       }
-      
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, Math.random() * 100 + 50));
-      
+
+      await new Promise((resolve) => setTimeout(resolve, 50)); // fixed delay
+
       const data = { result: `Data for ${key}`, timestamp: now };
       cache.set(key, { data, timestamp: now });
-      
+
       return { ...data, fromCache: false };
     };
 
-    // First call - should not be from cache
-    const result1 = await mockCachedApiCall('test-key');
+    let p = mockCachedApiCall("test-key");
+    jest.runOnlyPendingTimers();
+    const result1 = await p;
     expect(result1.fromCache).toBe(false);
-    
-    // Second call immediately - should be from cache
-    const result2 = await mockCachedApiCall('test-key');
+
+    p = mockCachedApiCall("test-key");
+    jest.runOnlyPendingTimers();
+    const result2 = await p;
     expect(result2.fromCache).toBe(true);
-    
-    // Wait for cache to expire and call again
-    await new Promise(resolve => setTimeout(resolve, 250));
-    const result3 = await mockCachedApiCall('test-key');
-    expect(result3.fromCache).toBe(false); // FLAKY: timing might be off, cache might still be valid
+
+    jest.advanceTimersByTime(250);
+    p = mockCachedApiCall("test-key");
+    jest.runOnlyPendingTimers();
+    const result3 = await p;
+    expect(result3.fromCache).toBe(false);
   });
 
-  // FLAKY TEST 23: WebSocket connection simulation
-  test('should handle WebSocket events (FLAKY: connection timing)', (done) => {
-    let connectionState = 'disconnected';
+  // Deterministic: WebSocket connection simulation
+  test("should handle WebSocket events deterministically", () => {
+    jest.useFakeTimers();
+
+    let connectionState = "disconnected";
     let messagesReceived = [];
-    
-    // Mock WebSocket behavior
+
     const mockWebSocket = {
       connect: () => {
-        // Random connection delay
         setTimeout(() => {
-          connectionState = 'connected';
+          connectionState = "connected";
           mockWebSocket.onopen && mockWebSocket.onopen();
-        }, Math.random() * 100 + 50);
+        }, 50);
       },
-      
       send: (message) => {
-        if (connectionState === 'connected') {
-          // Simulate message echo with delay
+        if (connectionState === "connected") {
           setTimeout(() => {
             messagesReceived.push(`Echo: ${message}`);
-            mockWebSocket.onmessage && mockWebSocket.onmessage({ data: `Echo: ${message}` });
-          }, Math.random() * 50 + 10);
+            mockWebSocket.onmessage &&
+              mockWebSocket.onmessage({ data: `Echo: ${message}` });
+          }, 20);
         }
       },
-      
       onopen: null,
-      onmessage: null
+      onmessage: null,
     };
 
-    // Set up event handlers
     mockWebSocket.onopen = () => {
-      mockWebSocket.send('Hello WebSocket');
-    };
-    
-    mockWebSocket.onmessage = (event) => {
-      // Check state after receiving message
-      setTimeout(() => {
-        expect(connectionState).toBe('connected');
-        expect(messagesReceived).toContain('Echo: Hello WebSocket'); // FLAKY: message might not arrive yet
-        expect(messagesReceived).toHaveLength(1);
-        done();
-      }, 10);
+      mockWebSocket.send("Hello WebSocket");
     };
 
-    // Start connection
+    mockWebSocket.onmessage = () => {
+      // After message echo processed
+      expect(connectionState).toBe("connected");
+      expect(messagesReceived).toContain("Echo: Hello WebSocket");
+      expect(messagesReceived).toHaveLength(1);
+    };
+
     mockWebSocket.connect();
-    
-    // Check connection state too early
-    setTimeout(() => {
-      expect(connectionState).toBe('connected'); // FLAKY: connection might not be established yet
-    }, 75);
+
+    // process connect (50ms) and echo (20ms)
+    jest.advanceTimersByTime(50);
+    jest.advanceTimersByTime(20);
+
+    // No premature assertions
+    expect(connectionState).toBe("connected");
+    expect(messagesReceived).toEqual(["Echo: Hello WebSocket"]);
   });
 
-  // FLAKY TEST 24: File upload with progress
-  test('should track upload progress correctly (FLAKY: progress timing)', (done) => {
+  // Deterministic: File upload with progress
+  test("should track upload progress deterministically", () => {
+    jest.useFakeTimers();
+
     let uploadProgress = 0;
     let uploadComplete = false;
-    
-    // Mock file upload with progress updates
+
     const mockFileUpload = (file) => {
       const totalSize = 1000;
       let uploaded = 0;
-      
+
       const uploadChunk = () => {
-        const chunkSize = Math.random() * 100 + 50; // Random chunk size
+        const chunkSize = 200; // fixed chunk size
         uploaded = Math.min(uploaded + chunkSize, totalSize);
         uploadProgress = Math.floor((uploaded / totalSize) * 100);
-        
+
         if (uploaded >= totalSize) {
           uploadComplete = true;
           return;
         }
-        
-        // Random delay between chunks
-        setTimeout(uploadChunk, Math.random() * 50 + 10);
+
+        setTimeout(uploadChunk, 20); // fixed delay between chunks
       };
-      
+
       uploadChunk();
     };
 
-    mockFileUpload({ name: 'test.jpg', size: 1000 });
-    
-    // Check progress at fixed intervals
-    setTimeout(() => {
-      expect(uploadProgress).toBeGreaterThan(30); // FLAKY: might be less than 30%
-    }, 100);
-    
-    setTimeout(() => {
-      expect(uploadProgress).toBeGreaterThan(70); // FLAKY: might be less than 70%
-    }, 200);
-    
-    setTimeout(() => {
-      expect(uploadComplete).toBe(true); // FLAKY: upload might not be complete
-      expect(uploadProgress).toBe(100);
-      done();
-    }, 300);
+    mockFileUpload({ name: "test.jpg", size: 1000 });
+
+    // step through 5 chunks (0 -> 200 -> 400 -> 600 -> 800 -> 1000)
+    expect(uploadProgress).toBe(20);
+    jest.advanceTimersByTime(20);
+    expect(uploadProgress).toBe(40);
+    jest.advanceTimersByTime(20);
+    expect(uploadProgress).toBe(60);
+    jest.advanceTimersByTime(20);
+    expect(uploadProgress).toBe(80);
+    jest.advanceTimersByTime(20);
+    expect(uploadProgress).toBe(100);
+    expect(uploadComplete).toBe(true);
   });
 });
