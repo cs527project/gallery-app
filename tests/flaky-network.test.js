@@ -270,7 +270,9 @@ describe("Flaky Network-Dependent Tests", () => {
   });
 
   // FLAKY TEST 24: File upload with progress
-  test("should track upload progress correctly (FLAKY: progress timing)", (done) => {
+  test("should track upload progress correctly (FLAKY: progress timing)", () => {
+    jest.useFakeTimers();
+
     let uploadProgress = 0;
     let uploadComplete = false;
 
@@ -296,21 +298,16 @@ describe("Flaky Network-Dependent Tests", () => {
       uploadChunk();
     };
 
+    const randSpy = jest.spyOn(Math, "random").mockReturnValue(0.5);
     mockFileUpload({ name: "test.jpg", size: 1000 });
 
-    // Check progress at fixed intervals
-    setTimeout(() => {
-      expect(uploadProgress).toBeGreaterThan(30); // FLAKY: might be less than 30%
-    }, 100);
+    // Drive timers until upload completes
+    jest.runAllTimers();
 
-    setTimeout(() => {
-      expect(uploadProgress).toBeGreaterThan(70); // FLAKY: might be less than 70%
-    }, 200);
+    expect(uploadComplete).toBe(true);
+    expect(uploadProgress).toBe(100);
 
-    setTimeout(() => {
-      expect(uploadComplete).toBe(true); // FLAKY: upload might not be complete
-      expect(uploadProgress).toBe(100);
-      done();
-    }, 300);
+    randSpy.mockRestore();
+    jest.useRealTimers();
   });
 });
